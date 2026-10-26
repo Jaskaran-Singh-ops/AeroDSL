@@ -1,0 +1,37 @@
+# Every lexical error in SPEC section 3.6. This file is meant to fail.
+scenario "Lexical errors"
+
+fix VOMAN 12.95 77.67
+
+# Mixed case: AeroDSL writes names in lower case and callsigns in UPPER CASE.
+let Cruise = FL320
+
+# A speed has at most three digits.
+let too_fast = 1000KT
+
+# A speed is digits followed by KT, not letters.
+let not_a_speed = ABKT
+
+# A decimal point must be followed by a digit.
+let truncated = 12.
+
+# A unit suffix cannot follow a decimal point.
+let fractional_speed = 12.5KT
+
+# A name cannot start with an underscore.
+let _hidden = 1
+
+# Not a character the language uses.
+let bad = 3 @ 4
+
+# '!' is only part of '!=' and means nothing on its own.
+let negated = !true
+
+# A byte above 127. The character below is a non-ASCII one; AeroDSL is ASCII.
+let accented = café
+
+# A control character, which is the invisible one at the end of this line.
+let control = 1
+
+# An unterminated string.
+print "this string never ends

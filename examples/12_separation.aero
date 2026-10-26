@@ -1,0 +1,36 @@
+# The companion to 02_converging.aero: the same geometry, but with a
+# resolution applied, and an assertion that separation is kept.
+#
+# Together the two files show what the language is for. The conflict
+# scenario asserts that the conflict happens; the resolution scenario
+# asserts that it does not. Either claim failing is a compiler error, not
+# something a human has to notice while watching a replay.
+scenario "Converging pair, resolved"
+
+fix VOMAN 12.95 77.67
+fix AKTIV 13.20 77.90
+
+flight AI202 type A320 enter VOMAN alt FL320 hdg 045 spd 280KT
+flight BA117 type B777 enter AKTIV alt FL320 hdg 225 spd 300KT
+
+# The resolution: put 2000 ft between them before they meet.
+clear BA117 descend FL300
+
+let closest_h = 500
+let worst_v = 99000
+let elapsed = 0
+while elapsed < 600 do
+  advance 10
+  # Record the pair's closest horizontal approach, and how much vertical
+  # separation they had at their tightest.
+  if hsep(AI202, BA117) < closest_h then
+    closest_h = hsep(AI202, BA117)
+    worst_v = vsep(AI202, BA117)
+  end
+  elapsed = elapsed + 10
+end
+
+print "closest horizontal: ", closest_h, " NM with ", worst_v, " ft vertically"
+
+# Separation is kept if either standard is met.
+assert closest_h >= 5 or worst_v >= 1000, "separation must be maintained"

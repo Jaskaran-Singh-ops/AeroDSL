@@ -1,0 +1,25 @@
+# Error recovery: the parser reports every one of these, rather than
+# stopping at the first. This file is meant to fail.
+scenario "Syntax errors"
+
+fix VOMAN 12.95 77.67
+flight AI202 type A320 enter VOMAN alt FL240 hdg 090 spd 280KT
+
+# A clearance with no operand.
+clear AI202 climb
+
+# Not a clearance.
+clear AI202 ascend FL320
+
+# Comparisons do not chain.
+let bad = 1 < 2 < 3
+
+# A missing 'then'.
+if AI202.alt > 100 advance 10 end
+
+# A missing 'end'.
+while AI202.alt < FL300 do
+  advance 10
+
+# A stray token after a complete statement.
+advance 10 20

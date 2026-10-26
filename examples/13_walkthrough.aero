@@ -1,0 +1,16 @@
+# The walkthrough used in the review slides: the program from Review 1,
+# slide 5. Every phase flag works on it (--tokens, --ast, --ir, --opt-ir,
+# --cfg, --bc, --trace, --scn). The author writes "cruise minus 2000, two
+# minutes in"; the compiler works out FL300 and 00:02:00. Exits 0.
+#
+scenario "Climb to cruise"
+fix VOMAN 12.95 77.67
+let cruise = FL320
+
+flight AI202 type A320 enter VOMAN
+       alt FL240 hdg 090 spd 280KT
+
+advance 120
+clear AI202 climb cruise - 2000
+advance 80
+clear AI202 heading 120

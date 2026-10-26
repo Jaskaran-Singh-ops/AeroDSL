@@ -1,0 +1,66 @@
+# Written so that every optimisation pass fires. Compile it with
+#
+#   ./aerodsl --ir --opt-ir --stats examples/06_optimise.aero
+#
+# to see the three-address code before and after, and what each pass did.
+#
+# The 'unread_value' warning below is deliberate: it is there to be
+# eliminated as dead code.
+scenario "Optimiser demonstration"
+
+fix VOMAN 12.95 77.67
+
+flight AI202 type A320 enter VOMAN alt FL240 hdg 090 spd 280KT
+
+# -- constant propagation and folding ------------------------------------
+# These three declarations collapse into the single constant 30000.
+let cruise = FL320
+let margin = 2000
+let target = cruise - margin
+clear AI202 climb target
+
+# -- algebraic simplification --------------------------------------------
+# '+ 0' becomes a copy, and the copy is then propagated away.
+let base = 240
+clear AI202 heading base + 0
+
+# -- dead code -----------------------------------------------------------
+# Nothing reads this, so the whole computation disappears.
+let unread_value = margin * 2 + 17
+
+# -- jump threading and unreachable code ---------------------------------
+# The condition is a known constant once 'margin' is propagated, so the
+# branch becomes a straight line and the else arm is removed entirely.
+if margin > 0 then
+  clear AI202 speed 300KT
+else
+  clear AI202 speed 180KT
+end
+
+# -- common subexpression elimination ------------------------------------
+# The same computation twice in one block, with no 'advance' between them
+# to change the aircraft's state, is computed once.
+let a = AI202.alt + 500
+let b = AI202.alt + 500
+print "a = ", a, ", b = ", b
+
+# -- loop-invariant code motion ------------------------------------------
+# Inside this procedure 'limit * 2' does not change from one iteration to
+# the next, so it moves out of the loop. It has to be a parameter rather
+# than a literal, or constant folding would have dealt with it first.
+#
+# 'f.alt' must NOT move out, because 'advance' changes it. That rule is
+# what keeps the optimiser honest about the simulated world.
+proc climb_in_steps(flight f, num limit, num step)
+  let n = 0
+  while n < 3 do
+    let budget = limit * 2
+    if f.alt < budget then
+      clear f climb budget - step
+    end
+    advance 30
+    n = n + 1
+  end
+end
+
+call climb_in_steps(AI202, FL200, 1000)

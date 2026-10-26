@@ -1,0 +1,18 @@
+# The error example used in the project review presentation. This file is
+# written to be rejected: it exits 1.
+#
+#   line 14  a heading held in a variable, out of range. Only the optimiser's
+#            constant propagation makes this visible to the range check.
+#   line 17  a climb and a descent for the same aircraft with no 'advance'
+#            between them: the first can never take effect.
+scenario "Errors"
+
+fix VOMAN 12.95 77.67
+flight AI202 type A320 enter VOMAN alt FL240 hdg 090 spd 280KT
+
+let turn = 450
+clear AI202 heading turn
+
+clear AI202 climb FL320
+clear AI202 descend FL280
+advance 60

@@ -1,0 +1,25 @@
+# Waiting for a condition instead of guessing how long it takes.
+#
+# A flat scenario file has to name an absolute time for the turn, which
+# means computing the climb by hand and redoing it whenever the starting
+# altitude is edited. Here the loop waits for the aircraft itself.
+scenario "Wait for level, then turn"
+
+fix VOMAN 12.95 77.67
+
+flight AI202 type A320 enter VOMAN alt FL240 hdg 090 spd 280KT
+
+clear AI202 climb FL320
+
+# Advance in ten-second steps until the aircraft reaches FL300.
+let waited = 0
+while AI202.alt < FL300 do
+  advance 10
+  waited = waited + 10
+end
+
+print "reached FL300 after ", waited, " seconds"
+clear AI202 heading 270
+advance 120
+
+assert AI202.alt >= FL300, "the aircraft should have passed FL300"

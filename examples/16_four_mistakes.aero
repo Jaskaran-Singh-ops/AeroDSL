@@ -1,0 +1,18 @@
+# Four typical mistakes, the same four as the hand-written BlueSky file
+# bluesky/four_mistakes.scn. Written to be rejected: it exits 1.
+#
+# The first compile reports the undeclared callsign AI220 (line 14) and stops.
+# Change AI220 to AI202 and compile again to see the other three: heading 450,
+# speed 40 kt, and a climb and a descent with no advance between them.
+scenario "Four mistakes"
+fix VOMAN 12.95 77.67
+flight AI202 type A320 enter VOMAN alt FL240 hdg 090 spd 280KT
+advance 10
+clear AI202 heading 450
+clear AI202 speed 40KT
+advance 10
+clear AI220 climb FL300
+advance 10
+clear AI202 climb FL320
+clear AI202 descend FL280
+advance 10

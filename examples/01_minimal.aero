@@ -1,0 +1,12 @@
+# The smallest complete AeroDSL scenario.
+scenario "One aircraft, one clearance"
+
+# A waypoint, with a latitude and a longitude in degrees.
+fix VOMAN 12.95 77.67
+
+# An aircraft entering the airspace at that waypoint.
+flight AI202 type A320 enter VOMAN alt FL240 hdg 090 spd 280KT
+
+# One clearance, then five minutes of simulated time.
+clear AI202 climb FL320
+advance 300

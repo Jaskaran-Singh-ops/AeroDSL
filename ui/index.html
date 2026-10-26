@@ -1,0 +1,1874 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AeroDSL</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230B0B0D'/%3E%3Cpath d='M16 5 L23 25 L16 21 L9 25 Z' fill='%232997FF'/%3E%3C/svg%3E">
+<style>
+  /* The same palette, type and motifs as the AeroDSL Review 1 keynote:
+     a near-black stage, off-white type, silver greys, hairlines, and one
+     electric-blue accent kept for the single most important thing.
+     Red appears only where the compiler reports an error. */
+  :root {
+    --stage: #0B0B0D;
+    --surface-hi: #1B1B1E;
+    --surface: #161618;
+    --surface-lo: #121214;
+    --line: #26262A;
+    --line-strong: #3A3A3C;
+    --line-faint: #1A1A1D;
+    --text: #F5F5F7;
+    --silver: #D2D2D7;
+    --grey: #86868B;
+    --dim: #6E6E73;
+    --blue: #2997FF;
+    --blue-soft: rgba(41, 151, 255, 0.14);
+    --red: #FF453A;
+    --red-soft: rgba(255, 69, 58, 0.10);
+    --sans: Arial, "Helvetica Neue", Helvetica, sans-serif;
+    --mono: Consolas, "SF Mono", SFMono-Regular, Menlo, "DejaVu Sans Mono", monospace;
+    --lh: 22px;          /* editor line height; the gutter and marks rely on it */
+    --pad-y: 16px;
+    --pad-x: 18px;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+
+  body {
+    background: var(--stage);
+    color: var(--text);
+    font: 14px/1.5 var(--sans);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  :focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+  button, select { font-family: var(--sans); }
+  code { font-family: var(--mono); font-size: 0.95em; color: var(--silver); }
+
+  /* ------------------------------------------------------------ header */
+
+  header {
+    position: relative;
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 32px;
+    padding: 22px 28px 20px;
+    overflow: hidden;
+  }
+  /* The keynote's one restrained glow, behind the pipeline. */
+  header::before {
+    content: "";
+    position: absolute;
+    right: -120px; top: -260px;
+    width: 760px; height: 520px;
+    background: radial-gradient(closest-side, rgba(41, 151, 255, 0.13), rgba(41, 151, 255, 0));
+    pointer-events: none;
+  }
+  .brand { position: relative; min-width: 0; }
+  .brand h1 {
+    margin: 0;
+    font: 700 32px/1 var(--sans);
+    letter-spacing: -0.035em;
+  }
+  .brand p {
+    margin: 7px 0 0;
+    color: var(--grey);
+    font-size: 14.5px;
+  }
+
+  .run {
+    position: relative;
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 26px;
+  }
+  .pipeline {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(5, 84px);
+  }
+  .pipeline li { position: relative; padding-top: 20px; font-size: 12px; color: var(--dim); }
+  /* the hairline the stages sit on */
+  .pipeline li::before {
+    content: "";
+    position: absolute;
+    top: 5px; left: 6px; right: -6px;
+    height: 1px;
+    background: var(--line-strong);
+  }
+  .pipeline li:last-child::before { display: none; }
+  .pipeline li.done::before { background: var(--grey); }
+  .pipeline i {
+    position: absolute;
+    top: 0; left: 0;
+    width: 11px; height: 11px;
+    border-radius: 50%;
+    border: 1.5px solid var(--line-strong);
+    background: var(--stage);
+    transition: background-color 240ms ease, border-color 240ms ease, box-shadow 240ms ease;
+  }
+  .pipeline li.done { color: var(--silver); }
+  .pipeline li.done i { background: var(--silver); border-color: var(--silver); }
+  .pipeline li.fail { color: var(--red); }
+  .pipeline li.fail i { border-color: var(--red); background: var(--red-soft); }
+  .pipeline li.final i {
+    background: var(--blue);
+    border-color: var(--blue);
+    box-shadow: 0 0 0 4px var(--blue-soft), 0 0 18px 2px rgba(41, 151, 255, 0.45);
+  }
+  .pipeline li.final { color: var(--text); }
+
+  .verdict { min-width: 150px; }
+  .verdict b { display: block; font-size: 15px; letter-spacing: -0.01em; }
+  .verdict span { display: block; margin-top: 3px; font-size: 12.5px; color: var(--grey); }
+  .verdict.bad b { color: var(--red); }
+
+  /* -------------------------------------------------------------- main */
+
+  main {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: grid;
+    grid-template-columns: minmax(380px, 41%) minmax(0, 1fr);
+    gap: 16px;
+    padding: 0 28px;
+  }
+
+  .card {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    min-width: 0;
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    background: linear-gradient(180deg, var(--surface-hi) 0%, var(--surface-lo) 100%);
+    overflow: hidden;
+  }
+  .card-head {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 16px 14px 20px;
+    border-bottom: 1px solid var(--line);
+    min-height: 60px;
+  }
+  /* The keynote's card label (slide 7). Used on the two cards only. */
+  .card-label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--blue);
+    white-space: nowrap;
+  }
+  .card-label.quiet { color: var(--dim); }
+
+  .controls { margin-left: auto; display: flex; align-items: center; gap: 10px; min-width: 0; }
+  .state { font-size: 12px; color: var(--dim); min-width: 62px; text-align: right; }
+  .state.offline { color: var(--red); }
+
+  select {
+    appearance: none;
+    -webkit-appearance: none;
+    min-width: 0;
+    max-width: 260px;
+    height: 34px;
+    padding: 0 34px 0 12px;
+    border: 1px solid var(--line-strong);
+    border-radius: 9px;
+    color: var(--text);
+    font-size: 13px;
+    text-overflow: ellipsis;
+    background:
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%2386868B' stroke-width='1.5'/%3E%3C/svg%3E") no-repeat right 12px center,
+      var(--surface-lo);
+    cursor: pointer;
+  }
+  select:hover { border-color: var(--grey); }
+  select option { background: var(--surface); color: var(--text); }
+
+  .compile {
+    height: 34px;
+    padding: 0 18px;
+    border: 0;
+    border-radius: 980px;
+    background: var(--blue);
+    color: #fff;
+    font-size: 13.5px;
+    font-weight: 700;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .compile:hover { background: #47A6FF; }
+  .compile:active { background: #1F86EB; }
+
+  /* ------------------------------------------------------------ editor */
+
+  .editor { flex: 1 1 auto; display: flex; min-height: 0; position: relative; }
+
+  .gutter {
+    flex: 0 0 auto;
+    padding: var(--pad-y) 10px var(--pad-y) 14px;
+    min-width: 54px;
+    text-align: right;
+    font: 12.5px/var(--lh) var(--mono);
+    color: #48484C;
+    user-select: none;
+    overflow: hidden;
+    white-space: pre;
+  }
+  .gutter i { display: block; font-style: normal; position: relative; }
+  .gutter i::before {
+    content: "";
+    position: absolute;
+    left: -6px; top: 50%;
+    width: 7px; height: 7px;
+    margin-top: -3.5px;
+    border-radius: 50%;
+  }
+  .gutter i.err { color: var(--red); }
+  .gutter i.err::before { background: var(--red); }
+  .gutter i.warn { color: var(--silver); }
+  .gutter i.warn::before { border: 1.5px solid var(--silver); width: 7px; height: 7px; box-sizing: border-box; }
+
+  .code-area { position: relative; flex: 1 1 auto; min-width: 0; }
+  .code-area textarea,
+  .code-area .hl-scroll {
+    position: absolute;
+    inset: 0;
+    margin: 0;
+    border: 0;
+    font: 13.5px/var(--lh) var(--mono);
+    tab-size: 2;
+    -moz-tab-size: 2;
+    white-space: pre;
+    letter-spacing: 0;
+  }
+  .hl-scroll { overflow: hidden; pointer-events: none; }
+  .hl {
+    position: absolute;
+    top: 0; left: 0;
+    min-width: 100%;
+    width: max-content;
+    will-change: transform;
+  }
+  .hl pre {
+    position: relative;
+    margin: 0;
+    padding: var(--pad-y) var(--pad-x);
+    font: inherit;
+    color: var(--silver);
+  }
+  .hl .k { color: var(--text); font-weight: 700; }
+  .hl .c { color: var(--dim); }
+  .hl .o { color: var(--grey); }
+  .mark {
+    position: absolute;
+    left: 0; right: 0;
+    height: var(--lh);
+  }
+  .mark.err { background: var(--red-soft); box-shadow: inset 2px 0 0 var(--red); }
+  .mark.warn { background: rgba(210, 210, 215, 0.05); box-shadow: inset 2px 0 0 var(--grey); }
+
+  textarea {
+    padding: var(--pad-y) var(--pad-x);
+    resize: none;
+    outline: 0;
+    background: transparent;
+    color: transparent;
+    caret-color: var(--text);
+    overflow: auto;
+    overflow-wrap: normal;
+  }
+  textarea::selection { background: rgba(41, 151, 255, 0.35); color: transparent; }
+  textarea:focus-visible { outline: 0; }
+  .code-area:focus-within { box-shadow: inset 0 0 0 1px rgba(41, 151, 255, 0.25); }
+
+  /* ------------------------------------------------------- diagnostics */
+
+  .diags {
+    flex: 0 0 auto;
+    max-height: 34%;
+    overflow: auto;
+    border-top: 1px dashed var(--line-strong);
+  }
+  .diags .none { padding: 14px 20px; color: var(--grey); font-size: 13px; }
+  .diags .none.offline { color: var(--silver); }
+  .diag {
+    display: grid;
+    grid-template-columns: 14px 52px 1fr;
+    gap: 10px;
+    align-items: baseline;
+    padding: 10px 20px;
+    border-bottom: 1px solid var(--line);
+    font-size: 13px;
+    cursor: pointer;
+  }
+  .diag:last-child { border-bottom: 0; }
+  .diag:hover { background: rgba(255, 255, 255, 0.025); }
+  .diag .dot { width: 8px; height: 8px; border-radius: 50%; align-self: start; margin-top: 5px; box-sizing: border-box; }
+  .diag.error .dot { background: var(--red); }
+  .diag.warning .dot { border: 1.5px solid var(--silver); }
+  .diag.note .dot { border: 1.5px solid var(--grey); }
+  .diag .at { font: 12.5px var(--mono); color: var(--grey); }
+  .diag .msg { color: var(--silver); }
+  .diag .msg small { display: block; margin-top: 2px; font-size: 11.5px; color: var(--dim); }
+  .diag.error .msg small { color: #C9564F; }
+
+  /* -------------------------------------------------------------- tabs */
+
+  .tabs {
+    flex: 0 0 auto;
+    display: flex;
+    gap: 2px;
+    padding: 0 10px;
+    overflow-x: auto;
+    scrollbar-width: none;
+    border-bottom: 1px solid var(--line);
+    min-height: 60px;
+    align-items: stretch;
+  }
+  .tabs::-webkit-scrollbar { display: none; }
+  .tabs button {
+    position: relative;
+    flex: 0 0 auto;
+    padding: 0 10px;
+    border: 0;
+    background: transparent;
+    color: var(--grey);
+    font-size: 13px;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .tabs button:hover { color: var(--text); }
+  .tabs button[aria-selected="true"] { color: var(--text); font-weight: 700; }
+  /* the keynote's short blue segment on a hairline (slide 8) */
+  .tabs button[aria-selected="true"]::after {
+    content: "";
+    position: absolute;
+    left: 10px; bottom: -1px;
+    width: 26px; height: 2px;
+    background: var(--blue);
+  }
+  .tabs .sep { flex: 0 0 1px; margin: 20px 6px; background: var(--line-strong); }
+
+  .about {
+    flex: 0 0 auto;
+    padding: 14px 20px 12px;
+    color: var(--grey);
+    font-size: 13px;
+  }
+  .about b { color: var(--text); font-weight: 700; margin-right: 6px; }
+
+  .view { flex: 1 1 auto; overflow: auto; min-height: 0; }
+
+  pre.code {
+    margin: 0;
+    padding: 4px 20px 22px;
+    font: 13px/1.65 var(--mono);
+    color: var(--silver);
+    white-space: pre;
+  }
+  pre.code .ts, pre.code .c { color: var(--dim); }
+  pre.code .cmd { color: var(--text); font-weight: 700; }
+
+  .empty { padding: 30px 20px; color: var(--grey); font-size: 14px; max-width: 56ch; }
+  .empty b { display: block; color: var(--text); font-size: 16px; margin-bottom: 6px; }
+
+  /* tables */
+  table { border-collapse: collapse; width: 100%; font-size: 13px; }
+  th, td { text-align: left; padding: 7px 20px; border-bottom: 1px solid var(--line); }
+  th {
+    position: sticky; top: 0;
+    background: var(--surface-lo);
+    color: var(--grey);
+    font-size: 12px;
+    font-weight: 400;
+  }
+  td.m { font-family: var(--mono); color: var(--silver); }
+  td.dim { color: var(--dim); }
+  tr:hover td { background: rgba(255, 255, 255, 0.02); }
+
+  .split { display: grid; grid-template-columns: 1fr 1fr; min-height: 100%; }
+  .split > div { min-width: 0; overflow: auto; }
+  .split > div + div { border-left: 1px solid var(--line); }
+  h3.sub {
+    margin: 0;
+    padding: 16px 20px 0;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text);
+  }
+  h3.sub span { font-weight: 400; color: var(--grey); margin-left: 6px; }
+
+  /* key-value lists */
+  .kv { display: grid; grid-template-columns: 1fr auto; padding: 8px 20px 4px; max-width: 640px; }
+  .kv div { padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 13px; color: var(--silver); }
+  .kv div:nth-child(even) { padding-left: 24px; font-family: var(--mono); text-align: right; color: var(--text); }
+  .kv div.zero:nth-child(even) { color: var(--dim); }
+  .note {
+    margin: 14px 20px 22px;
+    max-width: 72ch;
+    color: var(--grey);
+    font-size: 12.5px;
+    line-height: 1.6;
+  }
+
+  /* optimiser size bars */
+  .bars { padding: 14px 20px 4px; max-width: 640px; }
+  .bar-row { display: grid; grid-template-columns: 70px 1fr 48px; gap: 12px; align-items: center; margin: 9px 0; font-size: 12.5px; color: var(--grey); }
+  .bar-row .track { height: 8px; border-radius: 4px; background: var(--line-faint); overflow: hidden; }
+  .bar-row .fill { height: 100%; border-radius: 4px; background: var(--grey); }
+  .bar-row.after .fill { background: var(--blue); }
+  .bar-row b { font: 700 13px var(--mono); color: var(--text); text-align: right; }
+  .bars p { margin: 10px 0 0; font-size: 13px; color: var(--silver); }
+
+  /* trace */
+  .ev {
+    display: grid;
+    grid-template-columns: 74px 128px 1fr;
+    gap: 12px;
+    align-items: baseline;
+    padding: 9px 20px;
+    border-bottom: 1px solid var(--line);
+    font-size: 13px;
+    color: var(--silver);
+  }
+  .ev .t { font-family: var(--mono); color: var(--grey); font-size: 12.5px; }
+  .ev .k { color: var(--grey); font-size: 12.5px; display: flex; align-items: center; gap: 8px; }
+  .ev .k::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--line-strong); flex: 0 0 auto; }
+  .ev.clear .k::before { background: var(--silver); }
+  .ev.enter .k::before { border: 1.5px solid var(--silver); background: transparent; box-sizing: border-box; }
+  .ev.assertOk .k { color: var(--text); }
+  .ev.assertOk .k::before { background: var(--blue); }
+  .ev.los, .ev.assertFail { background: var(--red-soft); }
+  .ev.los .k, .ev.assertFail .k { color: var(--red); }
+  .ev.los .k::before, .ev.assertFail .k::before { background: var(--red); }
+  .ev b { color: var(--text); }
+  .ev .d code { color: var(--text); }
+
+  /* plan view */
+  .map-wrap { padding: 4px 20px 0; }
+  .map-wrap .note { margin-left: 0; margin-right: 0; }
+  .map-head { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; margin-bottom: 12px; }
+  .chips { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+  .chip {
+    display: inline-flex; align-items: center; gap: 7px;
+    height: 28px; padding: 0 11px;
+    border: 1px solid var(--line-strong);
+    border-radius: 980px;
+    background: transparent;
+    color: var(--silver);
+    font: 12.5px var(--mono);
+    cursor: pointer;
+  }
+  .chip i { width: 8px; height: 8px; border-radius: 50%; background: var(--silver); }
+  .chip[aria-pressed="true"] { border-color: var(--blue); color: var(--text); }
+  .chip[aria-pressed="true"] i { background: var(--blue); box-shadow: 0 0 8px rgba(41, 151, 255, 0.7); }
+  .key { display: flex; gap: 16px; flex-wrap: wrap; margin: 12px 0 0; font-size: 12px; color: var(--grey); }
+  .key span { display: inline-flex; align-items: center; gap: 6px; }
+  .key svg { width: 22px; height: 6px; border: 0; background: none; border-radius: 0; }
+
+  .scrub { display: flex; align-items: center; gap: 12px; margin-left: auto; font-size: 12.5px; color: var(--grey); }
+  .play {
+    width: 30px; height: 30px;
+    border-radius: 50%;
+    border: 1px solid var(--line-strong);
+    background: transparent;
+    color: var(--text);
+    cursor: pointer;
+    display: grid; place-items: center;
+  }
+  .play:hover { border-color: var(--grey); }
+  .scrub .clock { font-family: var(--mono); color: var(--text); min-width: 8ch; }
+  input[type="range"] {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 220px;
+    height: 20px;
+    background: transparent;
+    cursor: pointer;
+  }
+  input[type="range"]::-webkit-slider-runnable-track {
+    height: 2px;
+    border-radius: 2px;
+    background: linear-gradient(90deg, var(--blue) var(--p, 100%), var(--line-strong) var(--p, 100%));
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 14px; height: 14px;
+    margin-top: -6px;
+    border-radius: 50%;
+    background: var(--text);
+    border: 0;
+  }
+  input[type="range"]::-moz-range-track { height: 2px; background: var(--line-strong); }
+  input[type="range"]::-moz-range-progress { height: 2px; background: var(--blue); }
+  input[type="range"]::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; background: var(--text); border: 0; }
+
+  svg.plan {
+    width: 100%; height: auto; display: block;
+    background: var(--stage);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+  }
+  .grid-line { stroke: var(--line-faint); stroke-width: 1; }
+  .ring { fill: none; stroke: #202024; stroke-width: 1; }
+  .ring-label { fill: #4A4A4F; font: 10px var(--mono); }
+  .fix-mark { fill: none; stroke: var(--grey); stroke-width: 1.2; }
+  .fix-label { fill: var(--grey); font: 10.5px var(--mono); }
+  .track-rest { fill: none; stroke-width: 1.2; stroke-dasharray: 5 5; opacity: 0.35; }
+  .track-flown { fill: none; stroke-width: 1.8; }
+  .ac-call { font: 700 11px var(--mono); }
+  .ac-data { font: 10.5px var(--mono); fill: var(--grey); }
+  .los-link { stroke: var(--red); stroke-width: 1.4; stroke-dasharray: 3 3; }
+
+  /* ------------------------------------------------------------ footer */
+
+  footer {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 22px;
+    padding: 12px 28px 14px;
+    font-size: 12px;
+    color: var(--dim);
+  }
+  footer .stat b { color: var(--silver); font-weight: 400; font-family: var(--mono); font-size: 12px; margin-right: 5px; }
+  footer .stat.bad b { color: var(--red); }
+  footer .scope { margin-left: auto; text-align: right; }
+
+  /* Laptop widths: tighter phase tabs, and the source card's controls
+     move under its label so the example menu stays readable. */
+  @media (max-width: 1500px) {
+    .tabs { padding: 0 6px; gap: 0; }
+    .tabs button { padding: 0 8px; font-size: 12.5px; }
+    .tabs button[aria-selected="true"]::after { left: 8px; }
+    .tabs .sep { margin: 20px 4px; }
+  }
+  @media (max-width: 1280px) {
+    .card-head.wrap { flex-wrap: wrap; row-gap: 10px; }
+    .card-head.wrap .controls { margin-left: 0; width: 100%; }
+    .card-head.wrap select { flex: 1 1 auto; max-width: none; }
+  }
+  @media (max-width: 1100px) {
+    header { flex-wrap: wrap; gap: 18px; }
+    .run { margin-left: 0; }
+    body { overflow: auto; height: auto; min-height: 100%; }
+    main { grid-template-columns: 1fr; gap: 14px; }
+    .card { height: 78vh; }
+    .card.source { height: 62vh; }
+    .card-head.wrap { flex-wrap: nowrap; }
+    .card-head.wrap .controls { margin-left: auto; width: auto; }
+    .card-head.wrap select { flex: 0 1 auto; max-width: 260px; }
+  }
+  @media (max-width: 900px) {
+    main { grid-template-columns: 1fr; padding: 0 16px; gap: 14px; }
+    header { padding: 18px 16px 16px; }
+    .card { height: 70vh; }
+    .card.source { height: 62vh; }
+    .pipeline { grid-template-columns: repeat(5, minmax(56px, 72px)); }
+    .run { flex-wrap: wrap; gap: 14px; }
+    footer { flex-wrap: wrap; padding: 14px 16px 18px; gap: 8px 18px; }
+    footer .scope { margin-left: 0; text-align: left; }
+    .split { grid-template-columns: 1fr; }
+    .split > div + div { border-left: 0; border-top: 1px solid var(--line); }
+    .ev { grid-template-columns: 64px 1fr; }
+    .ev .d { grid-column: 1 / -1; }
+    input[type="range"] { width: 150px; }
+  }
+  @media (max-width: 520px) {
+    .card-head { flex-wrap: wrap; }
+    .controls { margin-left: 0; width: 100%; }
+    select { flex: 1 1 auto; max-width: none; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <h1>AeroDSL</h1>
+    <p>A higher-level language for aircraft traffic scenarios.</p>
+  </div>
+  <div class="run">
+    <ol class="pipeline" id="pipeline" aria-label="How far the last compile got">
+      <li data-k="lexed"><i></i>Lexed</li>
+      <li data-k="parsed"><i></i>Parsed</li>
+      <li data-k="checked"><i></i>Checked</li>
+      <li data-k="lowered"><i></i>Lowered</li>
+      <li data-k="ran"><i></i>Ran</li>
+    </ol>
+    <div class="verdict" id="verdict" aria-live="polite"><b>Compiling</b><span>&nbsp;</span></div>
+  </div>
+</header>
+
+<main>
+  <section class="card source" aria-label="AeroDSL source">
+    <div class="card-head wrap">
+      <span class="card-label">AeroDSL &middot; source</span>
+      <div class="controls">
+        <select id="examples" aria-label="Example program"></select>
+        <button class="compile" id="compile" title="Compile now (Ctrl+Enter)">Compile</button>
+        <span class="state" id="autostate" title="The page recompiles as you type">auto</span>
+      </div>
+    </div>
+    <div class="editor">
+      <div class="gutter" id="gutter" aria-hidden="true"></div>
+      <div class="code-area">
+        <div class="hl-scroll" aria-hidden="true"><div class="hl" id="hl"><div id="marks"></div><pre id="hlpre"></pre></div></div>
+        <textarea id="src" spellcheck="false" autocomplete="off" autocapitalize="off" aria-label="AeroDSL source code"></textarea>
+      </div>
+    </div>
+    <div class="diags" id="diags" aria-live="polite"></div>
+  </section>
+
+  <section class="card" aria-label="Compiler output">
+    <div class="tabs" id="tabs" role="tablist" aria-label="Compiler phases"></div>
+    <div class="about" id="about"></div>
+    <div class="view" id="view" role="tabpanel"></div>
+  </section>
+</main>
+
+<footer>
+  <span class="stat"><b id="f-src">&mdash;</b>lines</span>
+  <span class="stat"><b id="f-ir">&mdash;</b>three-address instructions</span>
+  <span class="stat"><b id="f-bc">&mdash;</b>bytecode</span>
+  <span class="stat"><b id="f-t">&mdash;</b>simulated</span>
+  <span class="stat" id="f-los-wrap"><b id="f-los">&mdash;</b><span id="f-los-l">separation losses</span></span>
+  <span class="stat" id="f-as-wrap"><b id="f-as">&mdash;</b><span id="f-as-l">assertions held</span></span>
+  <span class="scope">Academic prototype. Not for real aircraft or live air traffic control.</span>
+</footer>
+
+<script>
+"use strict";
+
+/* ------------------------------------------------------------------ *
+ * Examples: every file in examples/, copied verbatim by
+ * tools/sync_ui_examples.py, named with the review slides that use it.
+ * ------------------------------------------------------------------ */
+
+const EXAMPLES = {
+  "Climb to cruise · example 13 · Review 2: slides 7 to 10": `# The walkthrough used in the review slides: the program from Review 1,
+# slide 5. Every phase flag works on it (--tokens, --ast, --ir, --opt-ir,
+# --cfg, --bc, --trace, --scn). The author writes "cruise minus 2000, two
+# minutes in"; the compiler works out FL300 and 00:02:00. Exits 0.
+#
+scenario "Climb to cruise"
+fix VOMAN 12.95 77.67
+let cruise = FL320
+
+flight AI202 type A320 enter VOMAN
+       alt FL240 hdg 090 spd 280KT
+
+advance 120
+clear AI202 climb cruise - 2000
+advance 80
+clear AI202 heading 120
+`,
+
+  "Three arrivals · example 3 · Review 3: slides 8 and 11": `# A procedure applied to three aircraft. In a flat scenario file this
+# sequence would be written out three times, and changing it would mean
+# changing it in three places.
+scenario "Three arrivals on a standard profile"
+
+fix VOMAN 12.95 77.67
+fix AKTIV 13.20 77.90
+fix TELEM 12.70 77.40
+fix NORTH 13.60 77.70
+fix EAST  13.05 78.30
+
+# Three arrivals entering from different directions, stacked 2000 ft apart.
+flight AI202 type A320 enter AKTIV alt FL280 hdg 200 spd 300KT
+flight BA117 type B777 enter NORTH alt FL300 hdg 180 spd 310KT
+flight QF009 type A350 enter EAST  alt FL320 hdg 250 spd 320KT
+
+# One arrival profile, parameterised by the aircraft and its entry level.
+proc arrival(flight f, num from_level, fix entry)
+  clear f direct entry
+  clear f descend from_level - 8000
+  advance 120
+  clear f speed 250KT
+  advance 120
+  clear f descend FL100
+  advance 180
+end
+
+# The same profile, three times, each routed to a different waypoint.
+call arrival(AI202, FL280, VOMAN)
+call arrival(BA117, FL300, TELEM)
+call arrival(QF009, FL320, VOMAN)
+
+print "AI202 is at ", AI202.alt, " ft"
+print "BA117 is at ", BA117.alt, " ft"
+print "QF009 is at ", QF009.alt, " ft"
+`,
+
+  "Longer hold · example 15 · Review 3: slide 9": `# Example 3 with one change: the first hold in the arrival procedure lasts
+# 3 minutes instead of 2 (advance 120 became advance 180, line 22).
+# Compare the two scenario files: ten of the twelve timed lines move.
+# Used on the review slide "Now change one number". Exits 0.
+scenario "Three arrivals on a standard profile"
+
+fix VOMAN 12.95 77.67
+fix AKTIV 13.20 77.90
+fix TELEM 12.70 77.40
+fix NORTH 13.60 77.70
+fix EAST  13.05 78.30
+
+# Three arrivals entering from different directions, stacked 2000 ft apart.
+flight AI202 type A320 enter AKTIV alt FL280 hdg 200 spd 300KT
+flight BA117 type B777 enter NORTH alt FL300 hdg 180 spd 310KT
+flight QF009 type A350 enter EAST  alt FL320 hdg 250 spd 320KT
+
+# One arrival profile, parameterised by the aircraft and its entry level.
+proc arrival(flight f, num from_level, fix entry)
+  clear f direct entry
+  clear f descend from_level - 8000
+  advance 180
+  clear f speed 250KT
+  advance 120
+  clear f descend FL100
+  advance 180
+end
+
+# The same profile, three times, each routed to a different waypoint.
+call arrival(AI202, FL280, VOMAN)
+call arrival(BA117, FL300, TELEM)
+call arrival(QF009, FL320, VOMAN)
+
+print "AI202 is at ", AI202.alt, " ft"
+print "BA117 is at ", BA117.alt, " ft"
+print "QF009 is at ", QF009.alt, " ft"
+`,
+
+  "Four mistakes · example 16 · Review 3: slide 10": `# Four typical mistakes, the same four as the hand-written BlueSky file
+# bluesky/four_mistakes.scn. Written to be rejected: it exits 1.
+#
+# The first compile reports the undeclared callsign AI220 (line 14) and stops.
+# Change AI220 to AI202 and compile again to see the other three: heading 450,
+# speed 40 kt, and a climb and a descent with no advance between them.
+scenario "Four mistakes"
+fix VOMAN 12.95 77.67
+flight AI202 type A320 enter VOMAN alt FL240 hdg 090 spd 280KT
+advance 10
+clear AI202 heading 450
+clear AI202 speed 40KT
+advance 10
+clear AI220 climb FL300
+advance 10
+clear AI202 climb FL320
+clear AI202 descend FL280
+advance 10
+`,
+
+  "Wait for a level · example 5 · Review 2: slides 5, 13 · Review 3: slides 6, 7, 12": `# Waiting for a condition instead of guessing how long it takes.
+#
+# A flat scenario file has to name an absolute time for the turn, which
+# means computing the climb by hand and redoing it whenever the starting
+# altitude is edited. Here the loop waits for the aircraft itself.
+scenario "Wait for level, then turn"
+
+fix VOMAN 12.95 77.67
+
+flight AI202 type A320 enter VOMAN alt FL240 hdg 090 spd 280KT
+
+clear AI202 climb FL320
+
+# Advance in ten-second steps until the aircraft reaches FL300.
+let waited = 0
+while AI202.alt < FL300 do
+  advance 10
+  waited = waited + 10
+end
+
+print "reached FL300 after ", waited, " seconds"
+clear AI202 heading 270
+advance 120
+
+assert AI202.alt >= FL300, "the aircraft should have passed FL300"
+`,
+
+  "Conditional · example 4 · Review 2: slide 13": `# A clearance that depends on the traffic situation rather than on a
+# timestamp the author had to work out by hand.
+scenario "Conditional descent"
+
+fix VOMAN 12.95 77.67
+fix TELEM 12.70 77.40
+
+flight AI202 type A320 enter VOMAN alt FL320 hdg 180 spd 300KT
+flight BA117 type B777 enter TELEM alt FL300 hdg 000 spd 290KT
+
+clear AI202 direct TELEM
+advance 120
+
+# Which clearance is correct depends on where the other aircraft is, which
+# is only known once the simulation has run this far.
+if hsep(AI202, BA117) < 15 and vsep(AI202, BA117) < 2000 then
+  print "too close: turning AI202 away"
+  clear AI202 heading 270
+  advance 180
+else
+  print "clear to descend"
+  clear AI202 descend FL200
+  advance 180
+end
+
+assert vsep(AI202, BA117) >= 1000 or hsep(AI202, BA117) >= 5,
+       "separation must be maintained"
+`,
+
+  "Scope error · example 17 · Review 2: slide 12": `# A procedure cannot see the main body's variables: cruise lives in main's
+# activation record. Written to be rejected: it exits 1. Used on the review
+# slide about the symbol table: run --symbols to see the names, and the
+# compile to see where the barrier stops the lookup.
+scenario "Scope demo"
+fix VOMAN 12.95 77.67
+flight AI202 type A320 enter VOMAN alt FL240 hdg 090 spd 280KT
+let cruise = FL320
+proc arrival(flight f, num from_level)
+  clear f descend from_level - 8000
+  clear f climb cruise
+  advance 60
+end
+call arrival(AI202, FL300)
+print cruise
+`,
+
+  "Optimiser demo · example 6 · Review 2: slide 14 · Review 3: slide 13": `# Written so that every optimisation pass fires. Compile it with
+#
+#   ./aerodsl --ir --opt-ir --stats examples/06_optimise.aero
+#
+# to see the three-address code before and after, and what each pass did.
+#
+# The 'unread_value' warning below is deliberate: it is there to be
+# eliminated as dead code.
+scenario "Optimiser demonstration"
+
+fix VOMAN 12.95 77.67
+
+flight AI202 type A320 enter VOMAN alt FL240 hdg 090 spd 280KT
+
+# -- constant propagation and folding ------------------------------------
+# These three declarations collapse into the single constant 30000.
+let cruise = FL320
+let margin = 2000
+let target = cruise - margin
+clear AI202 climb target
+
+# -- algebraic simplification --------------------------------------------
+# '+ 0' becomes a copy, and the copy is then propagated away.
+let base = 240
+clear AI202 heading base + 0
+
+# -- dead code -----------------------------------------------------------
+# Nothing reads this, so the whole computation disappears.
+let unread_value = margin * 2 + 17
+
+# -- jump threading and unreachable code ---------------------------------
+# The condition is a known constant once 'margin' is propagated, so the
+# branch becomes a straight line and the else arm is removed entirely.
+if margin > 0 then
+  clear AI202 speed 300KT
+else
+  clear AI202 speed 180KT
+end
+
+# -- common subexpression elimination ------------------------------------
+# The same computation twice in one block, with no 'advance' between them
+# to change the aircraft's state, is computed once.
+let a = AI202.alt + 500
+let b = AI202.alt + 500
+print "a = ", a, ", b = ", b
+
+# -- loop-invariant code motion ------------------------------------------
+# Inside this procedure 'limit * 2' does not change from one iteration to
+# the next, so it moves out of the loop. It has to be a parameter rather
+# than a literal, or constant folding would have dealt with it first.
+#
+# 'f.alt' must NOT move out, because 'advance' changes it. That rule is
+# what keeps the optimiser honest about the simulated world.
+proc climb_in_steps(flight f, num limit, num step)
+  let n = 0
+  while n < 3 do
+    let budget = limit * 2
+    if f.alt < budget then
+      clear f climb budget - step
+    end
+    advance 30
+    n = n + 1
+  end
+end
+
+call climb_in_steps(AI202, FL200, 1000)
+`,
+
+  "Range error in a variable · example 14 · Review 2: slide 15": `# The error example used in the project review presentation. This file is
+# written to be rejected: it exits 1.
+#
+#   line 14  a heading held in a variable, out of range. Only the optimiser's
+#            constant propagation makes this visible to the range check.
+#   line 17  a climb and a descent for the same aircraft with no 'advance'
+#            between them: the first can never take effect.
+scenario "Errors"
+
+fix VOMAN 12.95 77.67
+flight AI202 type A320 enter VOMAN alt FL240 hdg 090 spd 280KT
+
+let turn = 450
+clear AI202 heading turn
+
+clear AI202 climb FL320
+clear AI202 descend FL280
+advance 60
+`,
+
+  "Converging pair · example 2": `# Two aircraft at the same level, converging head on. This is the shape of
+# a standard controller-training exercise: the trainee has to notice the
+# conflict and resolve it.
+#
+# The point of writing it in AeroDSL rather than as a flat command list is
+# the \`assert\` at the end. A scenario like this exists to produce a specific
+# conflict, and the assertion says so, so an edit that quietly removes the
+# conflict is caught by the compiler instead of by someone watching a replay.
+scenario "Converging pair at FL320"
+
+fix VOMAN 12.95 77.67
+fix AKTIV 13.20 77.90
+
+let level = FL320
+
+flight AI202 type A320 enter VOMAN alt level hdg 045 spd 280KT
+flight BA117 type B777 enter AKTIV alt level hdg 225 spd 300KT
+
+# Track the closest the pair ever comes, in the language itself.
+let closest = 500
+let elapsed = 0
+while elapsed < 600 do
+  advance 10
+  closest = min(closest, hsep(AI202, BA117))
+  elapsed = elapsed + 10
+end
+
+print "closest approach: ", closest, " NM"
+
+# The scenario's whole purpose, stated as a checkable claim.
+assert closest < 5, "the pair must come within 5 NM, or there is no exercise"
+`,
+
+  "Same pair, resolved · example 12": `# The companion to 02_converging.aero: the same geometry, but with a
+# resolution applied, and an assertion that separation is kept.
+#
+# Together the two files show what the language is for. The conflict
+# scenario asserts that the conflict happens; the resolution scenario
+# asserts that it does not. Either claim failing is a compiler error, not
+# something a human has to notice while watching a replay.
+scenario "Converging pair, resolved"
+
+fix VOMAN 12.95 77.67
+fix AKTIV 13.20 77.90
+
+flight AI202 type A320 enter VOMAN alt FL320 hdg 045 spd 280KT
+flight BA117 type B777 enter AKTIV alt FL320 hdg 225 spd 300KT
+
+# The resolution: put 2000 ft between them before they meet.
+clear BA117 descend FL300
+
+let closest_h = 500
+let worst_v = 99000
+let elapsed = 0
+while elapsed < 600 do
+  advance 10
+  # Record the pair's closest horizontal approach, and how much vertical
+  # separation they had at their tightest.
+  if hsep(AI202, BA117) < closest_h then
+    closest_h = hsep(AI202, BA117)
+    worst_v = vsep(AI202, BA117)
+  end
+  elapsed = elapsed + 10
+end
+
+print "closest horizontal: ", closest_h, " NM with ", worst_v, " ft vertically"
+
+# Separation is kept if either standard is met.
+assert closest_h >= 5 or worst_v >= 1000, "separation must be maintained"
+`,
+
+  "Minimal · example 1": `# The smallest complete AeroDSL scenario.
+scenario "One aircraft, one clearance"
+
+# A waypoint, with a latitude and a longitude in degrees.
+fix VOMAN 12.95 77.67
+
+# An aircraft entering the airspace at that waypoint.
+flight AI202 type A320 enter VOMAN alt FL240 hdg 090 spd 280KT
+
+# One clearance, then five minutes of simulated time.
+clear AI202 climb FL320
+advance 300
+`,
+
+  "Boundaries · example 11": `# Values exactly on every range boundary, all of which are valid.
+# This file is meant to compile and run without a single diagnostic.
+scenario "Boundary values"
+
+# Latitude and longitude at their extremes.
+fix NORTH 90.0 0.0
+fix SOUTH -90.0 0.0
+fix EAST 0.0 180.0
+fix WEST 0.0 -180.0
+fix VOMAN 12.95 77.67
+
+# The lowest and the highest altitude, heading and speed the model accepts.
+flight AA1 type A320 enter VOMAN alt 0 hdg 0 spd 60KT
+flight BB2 type B777 enter VOMAN alt 60000 hdg 360 spd 600KT
+
+# AA1 starts at the bottom of the range and goes to the top.
+clear AA1 climb 60000
+clear AA1 heading 360
+clear AA1 speed 600KT
+advance 1
+
+# BB2 starts at the top and goes to the bottom.
+clear BB2 descend 0
+clear BB2 heading 0
+clear BB2 speed 60KT
+advance 1
+
+# Each extreme waypoint used in turn, so that none is left unreferenced and
+# the bearing calculation is exercised at the edges of the coordinate range.
+clear AA1 direct NORTH
+advance 1
+clear AA1 direct SOUTH
+advance 1
+clear BB2 direct EAST
+advance 1
+clear BB2 direct WEST
+
+# The longest interval a single 'advance' accepts is 86400 seconds; this
+# stays well inside both that and the total simulated-time limit.
+advance 3600
+
+print "AA1 at ", AA1.alt, " ft, BB2 at ", BB2.alt, " ft"
+`,
+
+  "Lexical errors · example 7": `# Every lexical error in SPEC section 3.6. This file is meant to fail.
+scenario "Lexical errors"
+
+fix VOMAN 12.95 77.67
+
+# Mixed case: AeroDSL writes names in lower case and callsigns in UPPER CASE.
+let Cruise = FL320
+
+# A speed has at most three digits.
+let too_fast = 1000KT
+
+# A speed is digits followed by KT, not letters.
+let not_a_speed = ABKT
+
+# A decimal point must be followed by a digit.
+let truncated = 12.
+
+# A unit suffix cannot follow a decimal point.
+let fractional_speed = 12.5KT
+
+# A name cannot start with an underscore.
+let _hidden = 1
+
+# Not a character the language uses.
+let bad = 3 @ 4
+
+# '!' is only part of '!=' and means nothing on its own.
+let negated = !true
+
+# A byte above 127. The character below is a non-ASCII one; AeroDSL is ASCII.
+let accented = café
+
+# A control character, which is the invisible one at the end of this line.
+let control = 1
+
+# An unterminated string.
+print "this string never ends
+`,
+
+  "Syntax errors · example 8": `# Error recovery: the parser reports every one of these, rather than
+# stopping at the first. This file is meant to fail.
+scenario "Syntax errors"
+
+fix VOMAN 12.95 77.67
+flight AI202 type A320 enter VOMAN alt FL240 hdg 090 spd 280KT
+
+# A clearance with no operand.
+clear AI202 climb
+
+# Not a clearance.
+clear AI202 ascend FL320
+
+# Comparisons do not chain.
+let bad = 1 < 2 < 3
+
+# A missing 'then'.
+if AI202.alt > 100 advance 10 end
+
+# A missing 'end'.
+while AI202.alt < FL300 do
+  advance 10
+
+# A stray token after a complete statement.
+advance 10 20
+`,
+
+  "Type errors · example 9": `# Name and type errors from SPEC section 7.1. This file is meant to fail.
+scenario "Type errors"
+
+fix VOMAN 12.95 77.67
+flight AI202 type A320 enter VOMAN alt FL240 hdg 090 spd 280KT
+
+# An undeclared name.
+clear AI202 climb unknown_level
+
+# A waypoint where a number in feet is required.
+clear AI202 climb VOMAN
+
+# A number where a waypoint is required.
+clear AI202 direct 300
+
+# A waypoint is not an aircraft.
+clear VOMAN climb FL300
+
+# No implicit test against zero.
+if AI202.alt then
+  advance 10
+end
+
+# Different types cannot be compared.
+let mixed = AI202.alt == true
+
+# A waypoint has no state to read.
+let nowhere = VOMAN.alt
+
+# An aircraft is not an assignable variable.
+AI202 = 4
+
+# Division by a constant zero.
+let bad = FL320 / 0
+
+# The wrong number of arguments.
+let sep = hsep(AI202)
+`,
+
+  "Domain errors · example 10": `# Domain errors and clearance inconsistencies: SPEC sections 7.2 and 7.4.
+# The range errors make this file fail; the inconsistencies are warnings.
+scenario "Domain errors"
+
+fix VOMAN 12.95 77.67
+flight AI202 type A320 enter VOMAN alt FL240 hdg 090 spd 280KT
+flight BA117 type B777 enter VOMAN alt FL250 hdg 270 spd 300KT
+
+# Out of range, written as a literal.
+clear AI202 heading 450
+
+# Out of range after constant propagation: the compiler knows what h holds.
+let h = 500
+clear AI202 heading h
+
+# Below the lowest modelled speed.
+clear AI202 speed 60KT - 20
+
+# Contradictory vertical clearances with no advance between them.
+clear BA117 climb FL320
+clear BA117 descend FL280
+
+# Both of these assign the lateral path.
+clear BA117 heading 180
+clear BA117 direct VOMAN
+
+# BA117's last altitude clearance was 'descend FL280', so FL300 really is
+# upwards and this one is fine. Change it to FL260 and the compiler will say
+# the climb does not climb -- it tracks the commanded level through the code.
+advance 60
+clear BA117 climb FL300
+
+# Time cannot run backwards.
+advance 0
+`
+};
+
+/* ------------------------------------------------------------------ *
+ * Phases, in pipeline order
+ * ------------------------------------------------------------------ */
+
+const TABS = [
+  ["tokens",   "Tokens",    "What the lexer produced: every token, with its position."],
+  ["ast",      "AST",       "The abstract syntax tree the parser built, with the type of every expression."],
+  ["symbols",  "Symbols",   "Every name the program declares, its type and where it is declared."],
+  null,
+  ["ir",       "TAC",       "Three-address code, before and after optimisation."],
+  ["cfg",      "CFG",       "Basic blocks, dominators, natural loops and liveness."],
+  ["ssa",      "SSA",       "Static single assignment form, with phi functions."],
+  ["opt",      "Optimiser", "What each optimisation pass changed, and how much smaller the code got."],
+  ["nextuse",  "Next-use",  "Next-use information, which decides what the register allocator spills."],
+  ["bytecode", "Bytecode",  "AeroVM instructions after register allocation and peephole rewrites."],
+  null,
+  ["trace",    "Trace",     "What happened when the scenario ran, second by second."],
+  ["map",      "Plan",      "The aircraft's tracks, drawn from positions the simulation recorded."],
+  ["scn",      "Scenario",  "The generated scenario file: the flat, timestamped command list."]
+];
+const PHASES = TABS.filter(Boolean);
+
+let data = null;
+let tab = "scn";
+let scrubT = null;
+let hiFlight = 0;
+let playing = null;
+
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) =>
+  ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const plural = (n, one, many) => `${n} ${n === 1 ? one : (many || one + "s")}`;
+
+function clock(t) {
+  t = Math.round(t);
+  const h = Math.floor(t / 3600), m = Math.floor(t / 60) % 60, s = t % 60;
+  const p = (n) => String(n).padStart(2, "0");
+  return `${p(h)}:${p(m)}:${p(s)}`;
+}
+
+/* ------------------------------------------------------------------ *
+ * Editor: a highlighted copy of the text sits under a transparent
+ * textarea, so typing, selection and undo stay native.
+ * ------------------------------------------------------------------ */
+
+const KEYWORDS = new Set(("scenario fix flight type enter alt hdg spd lat lon proc let clear " +
+  "climb descend heading speed direct advance if then else while do end assert call print " +
+  "return and or not true false num bool").split(" "));
+
+function highlightLine(line) {
+  let out = "", i = 0;
+  while (i < line.length) {
+    const c = line[i];
+    if (c === "#") { out += `<span class="c">${esc(line.slice(i))}</span>`; break; }
+    if (c === '"') {
+      let j = i + 1;
+      while (j < line.length && line[j] !== '"') j++;
+      j = Math.min(j + 1, line.length);
+      out += esc(line.slice(i, j));
+      i = j;
+      continue;
+    }
+    if (/[A-Za-z_]/.test(c)) {
+      let j = i;
+      while (j < line.length && /[A-Za-z0-9_]/.test(line[j])) j++;
+      const w = line.slice(i, j);
+      out += KEYWORDS.has(w) ? `<span class="k">${w}</span>` : esc(w);
+      i = j;
+      continue;
+    }
+    if (/[=<>+\-*/%(),.]/.test(c)) { out += `<span class="o">${esc(c)}</span>`; i++; continue; }
+    out += esc(c);
+    i++;
+  }
+  return out;
+}
+
+function lineMarks() {
+  const marks = new Map();
+  if (!data) return marks;
+  for (const d of data.diagnostics) {
+    if (d.line <= 0) continue;
+    if (d.severity === "error") marks.set(d.line, "err");
+    else if (!marks.has(d.line)) marks.set(d.line, "warn");
+  }
+  return marks;
+}
+
+function renderEditor() {
+  const src = $("src").value;
+  const lines = src.split("\n");
+  $("hlpre").innerHTML = lines.map(highlightLine).join("\n") + "\n ";
+
+  const marks = lineMarks();
+  const lh = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--lh"));
+  const top = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--pad-y"));
+  let mk = "";
+  for (const [line, kind] of marks)
+    if (line <= lines.length) mk += `<div class="mark ${kind}" style="top:${top + (line - 1) * lh}px"></div>`;
+  $("marks").innerHTML = mk;
+
+  let g = "";
+  for (let i = 1; i <= lines.length; i++) {
+    const m = marks.get(i);
+    g += `<i class="${m || ""}">${i}</i>`;
+  }
+  $("gutter").innerHTML = g;
+  syncScroll();
+}
+
+function syncScroll() {
+  const ta = $("src");
+  $("hl").style.transform = `translate(${-ta.scrollLeft}px, ${-ta.scrollTop}px)`;
+  $("gutter").scrollTop = ta.scrollTop;
+}
+
+function gotoLine(line, col) {
+  const ta = $("src");
+  const lines = ta.value.split("\n");
+  let pos = 0;
+  for (let i = 0; i < line - 1 && i < lines.length; i++) pos += lines[i].length + 1;
+  pos += Math.max(0, (col || 1) - 1);
+  ta.focus();
+  ta.setSelectionRange(pos, pos);
+  const lh = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--lh"));
+  ta.scrollTop = Math.max(0, (line - 5) * lh);
+  syncScroll();
+}
+
+/* ------------------------------------------------------------------ *
+ * Header: how far the pipeline got
+ * ------------------------------------------------------------------ */
+
+function renderPipeline() {
+  const keys = ["lexed", "parsed", "checked", "lowered", "ran"];
+  const ph = data ? data.phases : {};
+  const errs = data ? data.diagnostics.filter((d) => d.severity === "error").length : 0;
+  const warns = data ? data.diagnostics.filter((d) => d.severity === "warning").length : 0;
+  const firstMissing = keys.findIndex((k) => !ph[k]);
+  document.querySelectorAll("#pipeline li").forEach((li, i) => {
+    li.className = "";
+    if (!data) return;
+    if (ph[keys[i]]) li.classList.add("done");
+    else if (i === firstMissing) li.classList.add("fail");
+  });
+  const v = $("verdict");
+  if (!data) { v.className = "verdict"; v.innerHTML = `<b>Compiling</b><span>&nbsp;</span>`; return; }
+  const allRan = firstMissing === -1;
+  if (allRan) document.querySelector('#pipeline li[data-k="ran"]').classList.add("final");
+  const failedAsserts = data.phases.ran ? data.vm.assertsFailed : 0;
+  if (errs) {
+    v.className = "verdict bad";
+    v.innerHTML = `<b>${plural(errs, "error")}</b><span>No scenario file was written.</span>`;
+  } else if (failedAsserts) {
+    v.className = "verdict bad";
+    v.innerHTML = `<b>${plural(failedAsserts, "assertion")} failed</b><span>The scenario ran; see the trace.</span>`;
+  } else {
+    v.className = "verdict";
+    v.innerHTML = `<b>${allRan ? "Compiled and ran" : "Compiled"}</b><span>${warns ? plural(warns, "warning") : "No errors or warnings"}</span>`;
+  }
+}
+
+/* ------------------------------------------------------------------ *
+ * Diagnostics
+ * ------------------------------------------------------------------ */
+
+function renderDiags() {
+  const box = $("diags");
+  if (!data) { box.innerHTML = `<div class="none">Compiling&hellip;</div>`; return; }
+  if (!data.diagnostics.length) {
+    const asserts = data.phases.ran ? data.vm.assertsRun : 0;
+    box.innerHTML = `<div class="none">No diagnostics. The scenario compiled and ran${asserts ? `, and ${asserts === 1 ? "its assertion" : `all ${asserts} assertions`} held` : ""}.</div>`;
+    return;
+  }
+  box.innerHTML = data.diagnostics.map((d) => `
+    <div class="diag ${d.severity}" role="button" tabindex="0" data-line="${d.line}" data-col="${d.col}">
+      <span class="dot"></span>
+      <span class="at">${d.line > 0 ? d.line + ":" + d.col : "&mdash;"}</span>
+      <span class="msg">${esc(d.message)}<small>${esc(d.phase)} ${esc(d.severity)}</small></span>
+    </div>`).join("");
+  box.querySelectorAll(".diag").forEach((el) => {
+    const go = () => { const l = +el.dataset.line; if (l > 0) gotoLine(l, +el.dataset.col); };
+    el.onclick = go;
+    el.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); go(); } };
+  });
+}
+
+/* ------------------------------------------------------------------ *
+ * Phase tabs
+ * ------------------------------------------------------------------ */
+
+function renderTabs() {
+  $("tabs").innerHTML = TABS.map((t) => t
+    ? `<button role="tab" data-key="${t[0]}" aria-selected="${t[0] === tab}" tabindex="${t[0] === tab ? 0 : -1}">${t[1]}</button>`
+    : `<span class="sep" aria-hidden="true"></span>`).join("");
+  const buttons = [...$("tabs").querySelectorAll("button")];
+  buttons.forEach((b, i) => {
+    b.onclick = () => selectTab(b.dataset.key);
+    b.onkeydown = (e) => {
+      const d = e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1 : 0;
+      if (!d) return;
+      e.preventDefault();
+      const next = buttons[(i + d + buttons.length) % buttons.length];
+      selectTab(next.dataset.key);
+      $("tabs").querySelector(`[data-key="${next.dataset.key}"]`).focus();
+    };
+  });
+  const sel = $("tabs").querySelector('[aria-selected="true"]');
+  if (sel) sel.scrollIntoView({ block: "nearest", inline: "nearest" });
+  const ph = PHASES.find((p) => p[0] === tab);
+  const n = PHASES.indexOf(ph) + 1;
+  $("about").innerHTML = `<b>${n}. ${ph[1]}</b>${ph[2]}`;
+}
+
+function selectTab(key) {
+  stopPlay();
+  tab = key;
+  renderTabs();
+  renderView();
+}
+
+/* ------------------------------------------------------------------ *
+ * Views
+ * ------------------------------------------------------------------ */
+
+function pre(text, fallback) {
+  if (text === null || text === undefined || text === "") return empty(fallback);
+  return `<pre class="code">${esc(text)}</pre>`;
+}
+function empty(msg) { return `<div class="empty">${msg}</div>`; }
+const NOT_RUN = "<b>The program did not get this far.</b>Fix the errors listed under the source, and this phase will appear.";
+
+function renderTokens() {
+  if (!data.tokens.length) return empty("<b>No tokens.</b>Type some AeroDSL on the left.");
+  const rows = data.tokens.map((t) => `
+    <tr><td class="m dim">${t.line}:${t.col}</td><td class="m">${esc(t.type)}</td>
+    <td class="m">${esc(t.text)}</td><td class="m dim">${t.value !== undefined ? t.value : ""}</td></tr>`).join("");
+  return `<table><thead><tr><th>Line:col</th><th>Token</th><th>Text</th><th>Value</th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+function renderIr() {
+  if (!data.text.ir) return empty(NOT_RUN);
+  return `<div class="split">
+    <div><h3 class="sub">Before optimisation</h3>${pre(data.text.ir, NOT_RUN)}</div>
+    <div><h3 class="sub">After optimisation</h3>${pre(data.text.optIr, NOT_RUN)}</div>
+  </div>`;
+}
+
+function renderOpt() {
+  const s = data.stats, z = data.sizes;
+  if (!z.irBefore) return empty(NOT_RUN);
+  const rows = [
+    ["Constants folded", s.folded],
+    ["Operands replaced by propagated constants", s.propagated],
+    ["Common subexpressions eliminated", s.cse],
+    ["Copies propagated", s.copies],
+    ["Algebraic simplifications", s.algebraic],
+    ["Dead instructions removed", s.dead],
+    ["Instructions hoisted out of loops", s.hoisted],
+    ["Jumps threaded or removed", s.jumps],
+    ["Unreachable blocks removed", s.blocksRemoved],
+    ["Peephole rewrites", s.peephole]
+  ];
+  const kv = rows.map(([k, v]) => `<div>${k}</div><div class="${v ? "" : "zero"}">${v}</div>`).join("");
+  const after = Math.round(100 * z.irAfter / z.irBefore);
+  const fewer = z.irBefore - z.irAfter;
+  return `<div class="bars">
+      <div class="bar-row"><span>Before</span><div class="track"><div class="fill" style="width:100%"></div></div><b>${z.irBefore}</b></div>
+      <div class="bar-row after"><span>After</span><div class="track"><div class="fill" style="width:${after}%"></div></div><b>${z.irAfter}</b></div>
+      <p>${fewer > 0 ? `${plural(fewer, "three-address instruction")} fewer (${100 - after}% smaller)` : "Nothing to remove in this program"}, then ${plural(z.bytecode, "bytecode instruction")}.</p>
+    </div>
+    <h3 class="sub">What each pass changed</h3>
+    <div class="kv">${kv}</div>
+    <p class="note">Passes repeat until nothing changes, because each one creates work for the
+    others. <code>clear</code>, <code>advance</code>, <code>enter</code> and <code>call</code> are
+    barriers: a read of the simulated world is never moved across one. Without that rule, a loop
+    waiting for an aircraft to climb would have its altitude read hoisted out and would never finish.</p>`;
+}
+
+function renderTrace() {
+  if (!data.phases.ran) return empty("<b>The scenario did not run.</b>Fix the errors listed under the source, and the trace will appear.");
+  if (!data.events.length) return empty("<b>Nothing happened.</b>The scenario ran but issued no clearances and printed nothing.");
+  const label = { clear: "Clearance", enter: "Entry", los: "Separation lost", assertOk: "Assertion held",
+                  assertFail: "Assertion failed", print: "Print" };
+  const body = data.events.map((e) => {
+    let d;
+    if (e.kind === "enter") d = `<b>${esc(e.flight)}</b> enters the airspace`;
+    else if (e.kind === "clear")
+      d = `<b>${esc(e.flight)}</b> cleared ${e.clearance} <code>${esc(e.value)}${e.unit ? " " + e.unit : ""}</code>`;
+    else d = esc(e.text || "");
+    return `<div class="ev ${e.kind}"><span class="t">${clock(e.t)}</span>
+      <span class="k">${label[e.kind] || e.kind}</span><span class="d">${d}</span></div>`;
+  }).join("");
+  const v = data.vm;
+  const state = data.flights.filter((f) => f.active).map((f) =>
+    `<div>${esc(f.name)}</div><div>FL${String(Math.round(f.alt / 100)).padStart(3, "0")} &middot; ${Math.round(f.hdg)}&deg; &middot; ${Math.round(f.spd)} kt</div>`
+  ).join("");
+  return body + `
+    <h3 class="sub">Final state</h3>
+    <div class="kv">${state || "<div>No aircraft</div><div>&mdash;</div>"}</div>
+    <h3 class="sub">Summary</h3>
+    <div class="kv">
+      <div>Simulated time</div><div>${Math.round(v.time)} s</div>
+      <div>Closest approach</div><div>${data.flights.length < 2 ? "only one aircraft" : `${v.minHsep.toFixed(2)} NM, ${Math.round(v.minVsep)} ft apart vertically`}</div>
+      <div>Losses of separation</div><div class="${v.losses ? "" : "zero"}">${v.losses}</div>
+      <div>Assertions checked</div><div>${v.assertsRun}</div>
+      <div>Assertions failed</div><div class="${v.assertsFailed ? "" : "zero"}">${v.assertsFailed}</div>
+    </div>
+    <p class="note">The separation standard applied is ${v.sepStandardNm} NM horizontally and
+    ${v.sepStandardFt} ft vertically. These are fixed prototype constants, not real minima: real
+    separation varies by airspace, altitude band, equipment and procedure, none of which this model
+    represents.</p>`;
+}
+
+function renderScn() {
+  const t = data.text.scn;
+  if (!t) return empty("<b>No scenario file.</b>The compiler writes one only when the program has no errors.");
+  const html = t.split("\n").map((l) => {
+    if (l.startsWith("#")) return `<span class="c">${esc(l)}</span>`;
+    const m = /^(\d\d:\d\d:\d\d\.\d\d>)(\S+)(.*)$/.exec(l);
+    if (!m) return esc(l);
+    return `<span class="ts">${esc(m[1])}</span><span class="cmd">${esc(m[2])}</span>${esc(m[3])}`;
+  }).join("\n");
+  return `<pre class="code">${html}</pre>`;
+}
+
+/* ---------- plan view ---------- */
+
+/* Geometry is worked out once per compile; drawPlan() only redraws the
+ * picture, so dragging the time slider or playing stays smooth. */
+let plan = null;
+
+function buildPlan() {
+  const tracks = data.tracks;            /* [flight, t, lat, lon, alt] */
+  const names = data.flights.map((f) => f.name);
+  if (hiFlight >= names.length) hiFlight = 0;
+  const tmax = tracks.reduce((m, p) => Math.max(m, p[1]), 0);
+
+  /* Bounds over waypoints and whole tracks, so the picture holds still. */
+  let minLat = 90, maxLat = -90, minLon = 180, maxLon = -180;
+  const consider = (lat, lon) => {
+    minLat = Math.min(minLat, lat); maxLat = Math.max(maxLat, lat);
+    minLon = Math.min(minLon, lon); maxLon = Math.max(maxLon, lon);
+  };
+  for (const p of tracks) consider(p[2], p[3]);
+  for (const f of data.fixes) consider(f.lat, f.lon);
+  if (maxLat - minLat < 0.02) { minLat -= 0.01; maxLat += 0.01; }
+  if (maxLon - minLon < 0.02) { minLon -= 0.01; maxLon += 0.01; }
+  const padLat = (maxLat - minLat) * 0.14, padLon = (maxLon - minLon) * 0.14;
+  minLat -= padLat; maxLat += padLat; minLon -= padLon; maxLon += padLon;
+
+  /* Equirectangular, longitude squeezed by cos(latitude) so a nautical
+   * mile is the same length in both directions. */
+  const cosLat = Math.cos((minLat + maxLat) / 2 * Math.PI / 180);
+  const wNm = (maxLon - minLon) * 60 * cosLat;
+  const hNm = (maxLat - minLat) * 60;
+  const W = 1000, H = Math.max(380, Math.min(820, Math.round(W * hNm / Math.max(wNm, 0.001))));
+  const px = (lon) => (lon - minLon) / (maxLon - minLon) * W;
+  const py = (lat) => H - (lat - minLat) / (maxLat - minLat) * H;
+  const pxPerNm = W / Math.max(wNm, 0.001);
+  const span = Math.max(wNm, hNm);
+  const ringNm = span > 120 ? 20 : span > 50 ? 10 : 5;
+
+  /* The parts that never change with time. */
+  let base = "";
+  const step = 0.05;
+  for (let lat = Math.ceil(minLat / step) * step; lat < maxLat; lat += step)
+    base += `<line class="grid-line" x1="0" y1="${py(lat).toFixed(1)}" x2="${W}" y2="${py(lat).toFixed(1)}"/>`;
+  for (let lon = Math.ceil(minLon / step) * step; lon < maxLon; lon += step)
+    base += `<line class="grid-line" x1="${px(lon).toFixed(1)}" y1="0" x2="${px(lon).toFixed(1)}" y2="${H}"/>`;
+  const cx = W / 2, cy = H / 2;
+  for (let r = ringNm, k = 0; r * pxPerNm < Math.hypot(W, H) / 2 && k < 12; r += ringNm, k++) {
+    const rp = r * pxPerNm;
+    base += `<circle class="ring" cx="${cx}" cy="${cy}" r="${rp.toFixed(1)}"/>`;
+    if (cy - rp > 14) base += `<text class="ring-label" x="${cx + 6}" y="${(cy - rp - 4).toFixed(1)}">${r} NM</text>`;
+  }
+  for (const f of data.fixes) {
+    const x = px(f.lon), y = py(f.lat);
+    base += `<path class="fix-mark" d="M ${x} ${y - 6} L ${x + 6} ${y} L ${x} ${y + 6} L ${x - 6} ${y} Z"/>`;
+    base += `<text class="fix-label" x="${x + 9}" y="${y - 9}">${esc(f.name)}</text>`;
+  }
+
+  const byFlight = new Map();
+  for (const p of tracks) {
+    if (!byFlight.has(p[0])) byFlight.set(p[0], []);
+    byFlight.get(p[0]).push(p);
+  }
+  return { names, tmax, W, H, px, py, ringNm, base, byFlight };
+}
+
+function planSvg(tnow) {
+  const { names, W, px, py, base, byFlight } = plan;
+  let svg = base;
+  /* The highlighted aircraft is drawn last so it sits on top. */
+  const order = [...byFlight.keys()].sort((a, b) => (a === hiFlight) - (b === hiFlight));
+  for (const fi of order) {
+    const pts = byFlight.get(fi);
+    const hot = fi === hiFlight;
+    const colour = hot ? "#2997FF" : "#D2D2D7";
+    const all = pts.map((p) => `${px(p[3]).toFixed(1)},${py(p[2]).toFixed(1)}`).join(" ");
+    svg += `<polyline class="track-rest" stroke="${colour}" points="${all}"/>`;
+    const flown = pts.filter((p) => p[1] <= tnow);
+    if (flown.length > 1) {
+      const s = flown.map((p) => `${px(p[3]).toFixed(1)},${py(p[2]).toFixed(1)}`).join(" ");
+      svg += `<polyline class="track-flown" stroke="${colour}" opacity="${hot ? 1 : 0.75}" points="${s}"/>`;
+    }
+    const at = flown.length ? flown[flown.length - 1] : pts[0];
+    const prev = flown.length > 1 ? flown[flown.length - 2] : null;
+    let rot = 0;
+    if (prev) rot = Math.atan2(px(at[3]) - px(prev[3]), -(py(at[2]) - py(prev[2]))) * 180 / Math.PI;
+    const x = px(at[3]), y = py(at[2]);
+    if (hot) svg += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="13" fill="rgba(41,151,255,0.16)"/>`;
+    svg += `<g transform="translate(${x.toFixed(1)} ${y.toFixed(1)}) rotate(${rot.toFixed(1)})">
+      <path d="M 0 -8 L 5.5 7 L 0 4 L -5.5 7 Z" fill="${colour}"/></g>`;
+    const fl = "FL" + String(Math.round(at[4] / 100)).padStart(3, "0");
+    const lx = x + 12 > W - 90 ? x - 92 : x + 12;
+    svg += `<text class="ac-call" fill="${hot ? "#F5F5F7" : "#D2D2D7"}" x="${lx.toFixed(1)}" y="${(y - 8).toFixed(1)}">${esc(names[fi] || fi)}</text>`;
+    svg += `<text class="ac-data" x="${lx.toFixed(1)}" y="${(y + 6).toFixed(1)}">${fl}</text>`;
+  }
+  /* Where separation was lost: join the pair. */
+  for (const e of data.events) {
+    if (e.kind !== "los" || e.t > tnow) continue;
+    const ai = names.indexOf(e.flight), bi = names.indexOf(e.other);
+    if (ai < 0 || bi < 0) continue;
+    const near = (fi) => {
+      let best = null, bd = Infinity;
+      for (const p of byFlight.get(fi) || []) { const d = Math.abs(p[1] - e.t); if (d < bd) { bd = d; best = p; } }
+      return best;
+    };
+    const a = near(ai), b = near(bi);
+    if (!a || !b) continue;
+    svg += `<line class="los-link" x1="${px(a[3]).toFixed(1)}" y1="${py(a[2]).toFixed(1)}" x2="${px(b[3]).toFixed(1)}" y2="${py(b[2]).toFixed(1)}"/>`;
+    const mx = (px(a[3]) + px(b[3])) / 2, my = (py(a[2]) + py(b[2])) / 2;
+    svg += `<circle cx="${mx.toFixed(1)}" cy="${my.toFixed(1)}" r="5" fill="none" stroke="#FF453A" stroke-width="1.4"/>`;
+  }
+  return svg;
+}
+
+const ICON_PLAY = `<svg width="10" height="12" viewBox="0 0 10 12" aria-hidden="true"><path d="M0 0 L10 6 L0 12 Z" fill="#F5F5F7"/></svg>`;
+const ICON_PAUSE = `<svg width="10" height="12" viewBox="0 0 10 12" aria-hidden="true"><rect width="3" height="12" fill="#F5F5F7"/><rect x="7" width="3" height="12" fill="#F5F5F7"/></svg>`;
+
+function renderMap() {
+  if (!data.phases.ran || !data.tracks.length) {
+    plan = null;
+    return empty("<b>Nothing to draw yet.</b>The plan appears once the scenario compiles and runs.");
+  }
+  plan = buildPlan();
+  const chips = data.flights.map((f, i) =>
+    `<button class="chip" data-fi="${i}" aria-pressed="${i === hiFlight}" title="Highlight ${esc(f.name)}"><i></i>${esc(f.name)}</button>`).join("");
+  const hasLos = data.events.some((e) => e.kind === "los");
+  return `<div class="map-wrap">
+    <div class="map-head">
+      <div class="chips" aria-label="Highlight an aircraft">${chips}</div>
+      <div class="scrub">
+        <button class="play" id="play" aria-label="Play the scenario">${ICON_PLAY}</button>
+        <input type="range" id="scrub" min="0" max="${plan.tmax}" step="10" value="${plan.tmax}" aria-label="Simulated time">
+        <span class="clock" id="clock"></span>
+      </div>
+    </div>
+    <svg class="plan" id="plansvg" viewBox="0 0 ${plan.W} ${plan.H}" preserveAspectRatio="xMidYMid meet" role="img"
+         aria-label="Plan view of the aircraft tracks"></svg>
+    <div class="key">
+      <span><svg viewBox="0 0 22 6" aria-hidden="true"><line x1="0" y1="3" x2="22" y2="3" stroke="#D2D2D7" stroke-width="2"/></svg>flown</span>
+      <span><svg viewBox="0 0 22 6" aria-hidden="true"><line x1="0" y1="3" x2="22" y2="3" stroke="#86868B" stroke-width="1.4" stroke-dasharray="4 3"/></svg>still to fly</span>
+      ${hasLos ? `<span><svg viewBox="0 0 22 6" aria-hidden="true"><line x1="0" y1="3" x2="22" y2="3" stroke="#FF453A" stroke-width="1.4" stroke-dasharray="3 3"/></svg>separation lost</span>` : ""}
+    </div>
+    <p class="note">Labels show the callsign and flight level. Tracks are drawn from positions the
+    simulation recorded every ten seconds, on a flat-earth approximation, with range rings every
+    ${plan.ringNm} NM. The separation standard is ${data.vm.sepStandardNm} NM horizontally and
+    ${data.vm.sepStandardFt} ft vertically: fixed prototype constants, not real minima.</p>
+  </div>`;
+}
+
+function drawPlan() {
+  if (!plan || !$("plansvg")) return;
+  const tnow = scrubT === null ? plan.tmax : Math.min(scrubT, plan.tmax);
+  $("plansvg").innerHTML = planSvg(tnow);
+  const sc = $("scrub");
+  sc.value = tnow;
+  sc.style.setProperty("--p", (plan.tmax ? 100 * tnow / plan.tmax : 100).toFixed(1) + "%");
+  $("clock").textContent = clock(tnow);
+}
+
+function wireMap() {
+  if (!plan) return;
+  drawPlan();
+  $("scrub").oninput = () => { stopPlay(); scrubT = +$("scrub").value; drawPlan(); };
+  document.querySelectorAll(".chip").forEach((c) => {
+    c.onclick = () => {
+      hiFlight = +c.dataset.fi;
+      document.querySelectorAll(".chip").forEach((o) => o.setAttribute("aria-pressed", String(o === c)));
+      drawPlan();
+    };
+  });
+  $("play").onclick = () => (playing ? stopPlay() : startPlay());
+  setPlayIcon();
+}
+
+function setPlayIcon() {
+  const b = $("play");
+  if (!b) return;
+  b.innerHTML = playing ? ICON_PAUSE : ICON_PLAY;
+  b.setAttribute("aria-label", playing ? "Pause" : "Play the scenario");
+}
+
+function startPlay() {
+  if (!plan) return;
+  if (scrubT === null || scrubT >= plan.tmax) scrubT = 0;
+  /* About six seconds for the whole run, whatever its length. */
+  const stepMs = Math.max(16, Math.min(90, 6000 / Math.max(1, plan.tmax / 10)));
+  let last = 0;
+  const tick = (ts) => {
+    if (!playing) return;
+    if (ts - last >= stepMs) {
+      last = ts;
+      scrubT = Math.min(plan.tmax, scrubT + 10);
+      drawPlan();
+      if (scrubT >= plan.tmax) { stopPlay(); return; }
+    }
+    playing = requestAnimationFrame(tick);
+  };
+  playing = requestAnimationFrame(tick);
+  setPlayIcon();
+}
+
+function stopPlay() {
+  if (!playing) return;
+  cancelAnimationFrame(playing);
+  playing = null;
+  setPlayIcon();
+}
+
+function renderView() {
+  const v = $("view");
+  if (!data) { v.innerHTML = empty("Compiling&hellip;"); return; }
+  let html;
+  switch (tab) {
+    case "tokens":   html = renderTokens(); break;
+    case "ast":      html = pre(data.text.ast, NOT_RUN); break;
+    case "symbols":  html = pre(data.text.symbols, NOT_RUN); break;
+    case "ir":       html = renderIr(); break;
+    case "cfg":      html = pre(data.text.cfg, NOT_RUN); break;
+    case "ssa":      html = pre(data.text.ssa, NOT_RUN); break;
+    case "opt":      html = renderOpt(); break;
+    case "nextuse":  html = pre(data.text.nextuse, NOT_RUN); break;
+    case "bytecode": html = pre(data.text.bytecode, NOT_RUN); break;
+    case "trace":    html = renderTrace(); break;
+    case "map":      html = renderMap(); break;
+    case "scn":      html = renderScn(); break;
+    default:         html = empty("&mdash;");
+  }
+  v.innerHTML = html;
+  if (tab === "map") wireMap();
+}
+
+function renderFooter() {
+  $("f-src").textContent = $("src").value.split("\n").length;
+  if (!data) return;
+  const ran = data.phases.ran;
+  $("f-ir").textContent = data.sizes.irBefore ? `${data.sizes.irBefore} \u2192 ${data.sizes.irAfter}` : "\u2014";
+  $("f-bc").textContent = data.sizes.bytecode || "\u2014";
+  $("f-t").textContent = ran ? `${Math.round(data.vm.time)} s` : "\u2014";
+  $("f-los").textContent = ran ? data.vm.losses : "\u2014";
+  $("f-los-wrap").classList.toggle("bad", ran && data.vm.losses > 0);
+  $("f-los-l").textContent = ran && data.vm.losses === 1 ? "separation loss" : "separation losses";
+  const ar = ran ? data.vm.assertsRun : 0;
+  $("f-as").textContent = !ran ? "\u2014" : ar ? `${ar - data.vm.assertsFailed} of ${ar}` : "0";
+  $("f-as-l").textContent = ran && !ar ? "assertions" : "assertions held";
+  $("f-as-wrap").classList.toggle("bad", ran && data.vm.assertsFailed > 0);
+}
+
+/* ------------------------------------------------------------------ *
+ * Compiling
+ * ------------------------------------------------------------------ */
+
+let inFlight = false, pending = false;
+
+function setState(s) {
+  const el = $("autostate");
+  el.textContent = s;
+  el.className = "state" + (s === "offline" ? " offline" : "");
+}
+
+async function compile() {
+  if (inFlight) { pending = true; return; }
+  inFlight = true;
+  setState("compiling");
+  try {
+    const res = await fetch("/compile", {
+      method: "POST",
+      headers: { "Content-Type": "text/plain" },
+      body: $("src").value
+    });
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    const next = await res.json();
+    /* Keep the scrubber where it was unless the run got shorter. */
+    const tmax = next.tracks && next.tracks.length
+      ? next.tracks.reduce((m, p) => Math.max(m, p[1]), 0) : 0;
+    if (scrubT !== null && scrubT > tmax) scrubT = null;
+    data = next;
+    setState("auto");
+  } catch (err) {
+    setState("offline");
+    $("diags").innerHTML = `<div class="none offline">The compiler is not running, so nothing can be
+      compiled (${esc(err.message)}). Start it again: on Windows double-click <code>run-demo.bat</code>;
+      on macOS or Linux run <code>./run-demo.sh</code>; or run <code>aerodsl --serve 8080</code>
+      in the project folder.</div>`;
+    inFlight = false;
+    return;
+  }
+  inFlight = false;
+  renderPipeline(); renderEditor(); renderDiags(); renderView(); renderFooter();
+  if (pending) { pending = false; compile(); }
+}
+
+let timer = null;
+function scheduleCompile() {
+  renderEditor(); renderFooter();
+  clearTimeout(timer);
+  timer = setTimeout(compile, 350);
+}
+
+/* ------------------------------------------------------------------ *
+ * Start-up
+ * ------------------------------------------------------------------ */
+
+function init() {
+  const sel = $("examples");
+  const names = Object.keys(EXAMPLES);
+  sel.innerHTML = names.map((k, i) => `<option value="${i}">${esc(k)}</option>`).join("");
+  sel.onchange = () => {
+    stopPlay();
+    $("src").value = EXAMPLES[names[+sel.value]];
+    $("src").scrollTop = 0; $("src").scrollLeft = 0;
+    scrubT = null; hiFlight = 0;
+    scheduleCompile();
+  };
+
+  const ta = $("src");
+  ta.value = EXAMPLES[names[0]];
+  ta.addEventListener("input", scheduleCompile);
+  ta.addEventListener("scroll", syncScroll);
+  ta.addEventListener("keydown", (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === "Enter") { e.preventDefault(); clearTimeout(timer); compile(); return; }
+    /* Tab inserts two spaces rather than leaving the editor. */
+    if (e.key === "Tab" && !e.shiftKey) {
+      e.preventDefault();
+      const s = ta.selectionStart, t = ta.selectionEnd;
+      ta.setRangeText("  ", s, t, "end");
+      scheduleCompile();
+    }
+  });
+  $("compile").onclick = () => { clearTimeout(timer); compile(); };
+
+  renderTabs();
+  renderPipeline();
+  renderEditor();
+  renderFooter();
+  compile();
+}
+
+init();
+</script>
+</body>
+</html>

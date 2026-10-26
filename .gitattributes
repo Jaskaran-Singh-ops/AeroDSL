@@ -1,0 +1,10 @@
+# Shell scripts and sources keep LF line endings on every system, so
+# run-demo.sh still runs after a clone on Windows; batch files get CRLF.
+* text=auto eol=lf
+*.bat text eol=crlf
+
+# Never convert these.
+*.pptx binary
+*.png binary
+*.exe binary
+bin/** binary

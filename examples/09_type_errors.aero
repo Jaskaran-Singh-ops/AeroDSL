@@ -1,0 +1,37 @@
+# Name and type errors from SPEC section 7.1. This file is meant to fail.
+scenario "Type errors"
+
+fix VOMAN 12.95 77.67
+flight AI202 type A320 enter VOMAN alt FL240 hdg 090 spd 280KT
+
+# An undeclared name.
+clear AI202 climb unknown_level
+
+# A waypoint where a number in feet is required.
+clear AI202 climb VOMAN
+
+# A number where a waypoint is required.
+clear AI202 direct 300
+
+# A waypoint is not an aircraft.
+clear VOMAN climb FL300
+
+# No implicit test against zero.
+if AI202.alt then
+  advance 10
+end
+
+# Different types cannot be compared.
+let mixed = AI202.alt == true
+
+# A waypoint has no state to read.
+let nowhere = VOMAN.alt
+
+# An aircraft is not an assignable variable.
+AI202 = 4
+
+# Division by a constant zero.
+let bad = FL320 / 0
+
+# The wrong number of arguments.
+let sep = hsep(AI202)

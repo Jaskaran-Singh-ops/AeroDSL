@@ -1,0 +1,35 @@
+# A procedure applied to three aircraft. In a flat scenario file this
+# sequence would be written out three times, and changing it would mean
+# changing it in three places.
+scenario "Three arrivals on a standard profile"
+
+fix VOMAN 12.95 77.67
+fix AKTIV 13.20 77.90
+fix TELEM 12.70 77.40
+fix NORTH 13.60 77.70
+fix EAST  13.05 78.30
+
+# Three arrivals entering from different directions, stacked 2000 ft apart.
+flight AI202 type A320 enter AKTIV alt FL280 hdg 200 spd 300KT
+flight BA117 type B777 enter NORTH alt FL300 hdg 180 spd 310KT
+flight QF009 type A350 enter EAST  alt FL320 hdg 250 spd 320KT
+
+# One arrival profile, parameterised by the aircraft and its entry level.
+proc arrival(flight f, num from_level, fix entry)
+  clear f direct entry
+  clear f descend from_level - 8000
+  advance 120
+  clear f speed 250KT
+  advance 120
+  clear f descend FL100
+  advance 180
+end
+
+# The same profile, three times, each routed to a different waypoint.
+call arrival(AI202, FL280, VOMAN)
+call arrival(BA117, FL300, TELEM)
+call arrival(QF009, FL320, VOMAN)
+
+print "AI202 is at ", AI202.alt, " ft"
+print "BA117 is at ", BA117.alt, " ft"
+print "QF009 is at ", QF009.alt, " ft"

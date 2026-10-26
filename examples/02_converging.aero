@@ -1,0 +1,31 @@
+# Two aircraft at the same level, converging head on. This is the shape of
+# a standard controller-training exercise: the trainee has to notice the
+# conflict and resolve it.
+#
+# The point of writing it in AeroDSL rather than as a flat command list is
+# the `assert` at the end. A scenario like this exists to produce a specific
+# conflict, and the assertion says so, so an edit that quietly removes the
+# conflict is caught by the compiler instead of by someone watching a replay.
+scenario "Converging pair at FL320"
+
+fix VOMAN 12.95 77.67
+fix AKTIV 13.20 77.90
+
+let level = FL320
+
+flight AI202 type A320 enter VOMAN alt level hdg 045 spd 280KT
+flight BA117 type B777 enter AKTIV alt level hdg 225 spd 300KT
+
+# Track the closest the pair ever comes, in the language itself.
+let closest = 500
+let elapsed = 0
+while elapsed < 600 do
+  advance 10
+  closest = min(closest, hsep(AI202, BA117))
+  elapsed = elapsed + 10
+end
+
+print "closest approach: ", closest, " NM"
+
+# The scenario's whole purpose, stated as a checkable claim.
+assert closest < 5, "the pair must come within 5 NM, or there is no exercise"

@@ -1,0 +1,27 @@
+# A clearance that depends on the traffic situation rather than on a
+# timestamp the author had to work out by hand.
+scenario "Conditional descent"
+
+fix VOMAN 12.95 77.67
+fix TELEM 12.70 77.40
+
+flight AI202 type A320 enter VOMAN alt FL320 hdg 180 spd 300KT
+flight BA117 type B777 enter TELEM alt FL300 hdg 000 spd 290KT
+
+clear AI202 direct TELEM
+advance 120
+
+# Which clearance is correct depends on where the other aircraft is, which
+# is only known once the simulation has run this far.
+if hsep(AI202, BA117) < 15 and vsep(AI202, BA117) < 2000 then
+  print "too close: turning AI202 away"
+  clear AI202 heading 270
+  advance 180
+else
+  print "clear to descend"
+  clear AI202 descend FL200
+  advance 180
+end
+
+assert vsep(AI202, BA117) >= 1000 or hsep(AI202, BA117) >= 5,
+       "separation must be maintained"

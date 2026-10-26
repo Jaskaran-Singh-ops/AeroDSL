@@ -1,0 +1,34 @@
+# Domain errors and clearance inconsistencies: SPEC sections 7.2 and 7.4.
+# The range errors make this file fail; the inconsistencies are warnings.
+scenario "Domain errors"
+
+fix VOMAN 12.95 77.67
+flight AI202 type A320 enter VOMAN alt FL240 hdg 090 spd 280KT
+flight BA117 type B777 enter VOMAN alt FL250 hdg 270 spd 300KT
+
+# Out of range, written as a literal.
+clear AI202 heading 450
+
+# Out of range after constant propagation: the compiler knows what h holds.
+let h = 500
+clear AI202 heading h
+
+# Below the lowest modelled speed.
+clear AI202 speed 60KT - 20
+
+# Contradictory vertical clearances with no advance between them.
+clear BA117 climb FL320
+clear BA117 descend FL280
+
+# Both of these assign the lateral path.
+clear BA117 heading 180
+clear BA117 direct VOMAN
+
+# BA117's last altitude clearance was 'descend FL280', so FL300 really is
+# upwards and this one is fine. Change it to FL260 and the compiler will say
+# the climb does not climb -- it tracks the commanded level through the code.
+advance 60
+clear BA117 climb FL300
+
+# Time cannot run backwards.
+advance 0

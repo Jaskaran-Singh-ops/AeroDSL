@@ -1,0 +1,7 @@
+# Example 5 with the turn written as a BlueSky trigger instead of a time:
+# ATALT turns AI202 when it reaches FL300, whatever its climb rate.
+# This is what compiling altitude waits into ATALT would produce (next step).
+00:00:00.00>DEFWPT VOMAN,12.950000,77.670000
+00:00:00.00>CRE AI202,A320,12.950000,77.670000,90,FL240,280
+00:00:00.00>ALT AI202,FL320
+00:00:00.00>AI202 ATALT FL300 HDG AI202 270

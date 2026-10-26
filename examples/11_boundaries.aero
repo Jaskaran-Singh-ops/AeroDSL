@@ -1,0 +1,42 @@
+# Values exactly on every range boundary, all of which are valid.
+# This file is meant to compile and run without a single diagnostic.
+scenario "Boundary values"
+
+# Latitude and longitude at their extremes.
+fix NORTH 90.0 0.0
+fix SOUTH -90.0 0.0
+fix EAST 0.0 180.0
+fix WEST 0.0 -180.0
+fix VOMAN 12.95 77.67
+
+# The lowest and the highest altitude, heading and speed the model accepts.
+flight AA1 type A320 enter VOMAN alt 0 hdg 0 spd 60KT
+flight BB2 type B777 enter VOMAN alt 60000 hdg 360 spd 600KT
+
+# AA1 starts at the bottom of the range and goes to the top.
+clear AA1 climb 60000
+clear AA1 heading 360
+clear AA1 speed 600KT
+advance 1
+
+# BB2 starts at the top and goes to the bottom.
+clear BB2 descend 0
+clear BB2 heading 0
+clear BB2 speed 60KT
+advance 1
+
+# Each extreme waypoint used in turn, so that none is left unreferenced and
+# the bearing calculation is exercised at the edges of the coordinate range.
+clear AA1 direct NORTH
+advance 1
+clear AA1 direct SOUTH
+advance 1
+clear BB2 direct EAST
+advance 1
+clear BB2 direct WEST
+
+# The longest interval a single 'advance' accepts is 86400 seconds; this
+# stays well inside both that and the total simulated-time limit.
+advance 3600
+
+print "AA1 at ", AA1.alt, " ft, BB2 at ", BB2.alt, " ft"

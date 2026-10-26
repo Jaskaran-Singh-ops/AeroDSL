@@ -1,0 +1,19 @@
+# Local builds from `make`. The prebuilt programs in bin/ ARE kept: the
+# leading slash limits these to the repository root.
+/aerodsl
+/aerotest
+/aerodsl-debug
+/aerodsl.exe
+*.o
+*.obj
+
+# Scenario files you generate. The BlueSky comparison files are kept.
+*.scn
+!bluesky/*.scn
+
+# Editors and operating systems
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+__pycache__/

@@ -1,0 +1,15 @@
+# A procedure cannot see the main body's variables: cruise lives in main's
+# activation record. Written to be rejected: it exits 1. Used on the review
+# slide about the symbol table: run --symbols to see the names, and the
+# compile to see where the barrier stops the lookup.
+scenario "Scope demo"
+fix VOMAN 12.95 77.67
+flight AI202 type A320 enter VOMAN alt FL240 hdg 090 spd 280KT
+let cruise = FL320
+proc arrival(flight f, num from_level)
+  clear f descend from_level - 8000
+  clear f climb cruise
+  advance 60
+end
+call arrival(AI202, FL300)
+print cruise
